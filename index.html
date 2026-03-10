@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Congratulations Shihao</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <style>
@@ -15,9 +15,15 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            height: 100dvh;
             background: #0a0a2e;
             color: #fff;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
 
         #starfield {
@@ -309,12 +315,15 @@
         @media (max-width: 600px) {
             .hud-box { padding: 6px 12px; font-size: 0.75rem; }
             .progress-bar-container { padding: 6px 10px; }
-            #game-hud { gap: 8px; }
+            #game-hud { gap: 8px; top: max(20px, env(safe-area-inset-top)); }
             .icon-hero { width: 50px; height: 150px; }
             .morph-container { width: 100px; height: 100px; }
             .robot-sm { width: 32px; height: 32px; }
             .robot-md { width: 44px; height: 44px; }
             .robot-lg { width: 64px; height: 64px; }
+            .launch-btn { padding: 14px 40px; font-size: 1.1rem; }
+            .replay-btn { padding: 14px 40px; font-size: 1rem; }
+            #game-instructions { bottom: max(30px, env(safe-area-inset-bottom)); font-size: 0.75rem; padding: 0 20px; }
         }
     </style>
 </head>
@@ -425,7 +434,7 @@
                 <div class="progress-bar-track">
                     <div class="progress-bar-fill" id="progress-fill"></div>
                 </div>
-                <span class="progress-label">π.ai</span>
+                <span class="progress-label">???</span>
             </div>
         </div>
         <div id="game-instructions">Move mouse or touch to steer &middot; Collect the pies &middot; Dodge the asteroids</div>
@@ -512,6 +521,10 @@
     let crashSpin = 0, crashAngle = 0;
     let crashScale = 1;
     let crashType = 0;
+    let attemptCount = 0;
+    let scriptedCrashScheduled = false;
+    let confettiTimers = [];
+    let confettiSessionId = 0;
 
     const canvas = document.getElementById('game-canvas');
     const gctx = canvas.getContext('2d');
@@ -529,6 +542,9 @@
     }
 
     function playAgain() {
+        confettiSessionId++;
+        confettiTimers.forEach(t => clearTimeout(t));
+        confettiTimers = [];
         confetti.reset();
         startGame();
     }
@@ -536,8 +552,10 @@
     function startGame() {
         showScreen('game-screen');
         resizeGameCanvas();
+        attemptCount++;
         gameRunning = true;
         crashing = false;
+        scriptedCrashScheduled = false;
         gameStartTime = Date.now();
         piesCollected = 0;
         gameProgress = 0;
@@ -545,15 +563,45 @@
         particles = [];
         debris = [];
         rocketX = canvas.width / 2;
-        rocketY = canvas.height * 0.75;
+        rocketY = canvas.height * 0.7;
         targetX = rocketX;
         instructionOpacity = 1;
         document.getElementById('pie-count').textContent = '0';
         document.getElementById('progress-fill').style.width = '0%';
         document.getElementById('game-hud').style.opacity = '1';
         setTimeout(() => { instructionOpacity = 0; }, 4000);
+
+        if (attemptCount <= 2) {
+            const delay = attemptCount === 1 ? 2500 : 1800;
+            setTimeout(() => {
+                if (!gameRunning || scriptedCrashScheduled) return;
+                scriptedCrashScheduled = true;
+                spawnKillerAsteroid();
+            }, delay);
+        }
+
         gameLoop();
         spawnLoop();
+    }
+
+    function spawnKillerAsteroid() {
+        if (!gameRunning) return;
+        // 3 big asteroids: one on the player, two flanking
+        const offsets = [0, -70, 70];
+        offsets.forEach(off => {
+            const size = 40 + Math.random() * 10;
+            entities.push({
+                type: 'asteroid',
+                x: rocketX + off + (Math.random() - 0.5) * 20,
+                y: -(size + Math.random() * 30),
+                size,
+                speed: 5.5 + Math.random() * 1.5,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.05,
+                vertices: generateAsteroidVertices(size),
+                homing: true
+            });
+        });
     }
 
     // ─── Input ───
@@ -562,8 +610,14 @@
         targetX = e.touches ? e.touches[0].clientX : e.clientX;
     }
     window.addEventListener('mousemove', handlePointer);
-    window.addEventListener('touchmove', handlePointer, { passive: true });
-    window.addEventListener('touchstart', handlePointer, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+        if (gameRunning || crashing) e.preventDefault();
+        handlePointer(e);
+    }, { passive: false });
+    window.addEventListener('touchstart', (e) => {
+        if (gameRunning || crashing) e.preventDefault();
+        handlePointer(e);
+    }, { passive: false });
 
     // ─── Spawning ───
     function spawnLoop() {
@@ -571,24 +625,24 @@
         const elapsed = Date.now() - gameStartTime;
         const difficulty = Math.min(elapsed / GAME_DURATION, 1);
 
-        if (Math.random() < 0.5 + difficulty * 0.35) {
-            const size = 22 + Math.random() * 32;
+        if (Math.random() < 0.7 + difficulty * 0.25) {
+            const size = 26 + Math.random() * 36;
             entities.push({
                 type: 'asteroid', x: Math.random() * canvas.width, y: -size, size,
-                speed: 2.5 + Math.random() * 3 + difficulty * 2.5,
+                speed: 3.5 + Math.random() * 3.5 + difficulty * 3.5,
                 rotation: Math.random() * Math.PI * 2,
                 rotSpeed: (Math.random() - 0.5) * 0.05,
                 vertices: generateAsteroidVertices(size)
             });
         }
-        if (Math.random() < 0.12) {
+        if (Math.random() < 0.1) {
             entities.push({
                 type: 'pie', x: 60 + Math.random() * (canvas.width - 120), y: -30,
                 size: 22, speed: 1.5 + Math.random() * 2,
                 bobPhase: Math.random() * Math.PI * 2
             });
         }
-        setTimeout(spawnLoop, Math.max(300 - difficulty * 150, 100));
+        setTimeout(spawnLoop, Math.max(180 - difficulty * 100, 60));
     }
 
     function generateAsteroidVertices(size) {
@@ -600,7 +654,7 @@
         });
     }
 
-    // ─── Canvas Drawing ───
+    // ─── Canvas Drawing (Falcon 9-style) ───
     function drawRocket(x, y, scale = 1, angle = 0, alpha = 1) {
         gctx.save();
         gctx.translate(x, y);
@@ -608,66 +662,126 @@
         gctx.scale(scale, scale);
         gctx.globalAlpha = alpha;
 
-        const flicker = Math.random() * 8;
+        const flicker = Math.random() * 10;
+        const hw = 8; // half-width of the body
 
-        const flameGrad = gctx.createLinearGradient(0, 20, 0, 50 + flicker);
-        flameGrad.addColorStop(0, '#feca57');
-        flameGrad.addColorStop(0.5, '#ff6b6b');
-        flameGrad.addColorStop(1, 'rgba(255,100,50,0)');
+        // Exhaust plume (wide, bright)
+        const plumeGrad = gctx.createLinearGradient(0, 28, 0, 65 + flicker);
+        plumeGrad.addColorStop(0, 'rgba(255,220,100,0.9)');
+        plumeGrad.addColorStop(0.3, 'rgba(255,140,50,0.7)');
+        plumeGrad.addColorStop(0.7, 'rgba(255,80,40,0.3)');
+        plumeGrad.addColorStop(1, 'rgba(255,60,30,0)');
         gctx.beginPath();
-        gctx.moveTo(-10, 20);
-        gctx.quadraticCurveTo(-5, 35 + flicker, 0, 50 + flicker);
-        gctx.quadraticCurveTo(5, 35 + flicker, 10, 20);
-        gctx.fillStyle = flameGrad;
+        gctx.moveTo(-hw + 1, 28);
+        gctx.quadraticCurveTo(-hw - 3, 45 + flicker, 0, 65 + flicker);
+        gctx.quadraticCurveTo(hw + 3, 45 + flicker, hw - 1, 28);
+        gctx.fillStyle = plumeGrad;
         gctx.fill();
 
-        const innerGrad = gctx.createLinearGradient(0, 20, 0, 38 + flicker * 0.6);
-        innerGrad.addColorStop(0, '#fff');
-        innerGrad.addColorStop(1, 'rgba(255,200,50,0)');
+        // Inner bright core
+        const coreGrad = gctx.createLinearGradient(0, 28, 0, 48 + flicker * 0.5);
+        coreGrad.addColorStop(0, '#fff');
+        coreGrad.addColorStop(0.5, 'rgba(255,240,150,0.8)');
+        coreGrad.addColorStop(1, 'rgba(255,200,50,0)');
         gctx.beginPath();
-        gctx.moveTo(-5, 20);
-        gctx.quadraticCurveTo(-2, 28 + flicker * 0.6, 0, 38 + flicker * 0.6);
-        gctx.quadraticCurveTo(2, 28 + flicker * 0.6, 5, 20);
-        gctx.fillStyle = innerGrad;
+        gctx.moveTo(-3, 28);
+        gctx.quadraticCurveTo(-2, 38 + flicker * 0.5, 0, 48 + flicker * 0.5);
+        gctx.quadraticCurveTo(2, 38 + flicker * 0.5, 3, 28);
+        gctx.fillStyle = coreGrad;
         gctx.fill();
 
-        gctx.beginPath();
-        gctx.moveTo(0, -30);
-        gctx.quadraticCurveTo(18, -10, 16, 20);
-        gctx.lineTo(-16, 20);
-        gctx.quadraticCurveTo(-18, -10, 0, -30);
-        const bodyGrad = gctx.createLinearGradient(-16, 0, 16, 0);
-        bodyGrad.addColorStop(0, '#d1d8e0');
-        bodyGrad.addColorStop(0.3, '#fff');
-        bodyGrad.addColorStop(1, '#a4b0be');
+        // Landing legs (behind body)
+        gctx.strokeStyle = '#707880';
+        gctx.lineWidth = 1.8;
+        gctx.lineCap = 'round';
+        gctx.beginPath(); gctx.moveTo(-hw + 2, 18); gctx.lineTo(-hw - 10, 32); gctx.stroke();
+        gctx.beginPath(); gctx.moveTo(hw - 2, 18); gctx.lineTo(hw + 10, 32); gctx.stroke();
+        // Leg feet
+        gctx.lineWidth = 1.5;
+        gctx.beginPath(); gctx.moveTo(-hw - 13, 32); gctx.lineTo(-hw - 7, 32); gctx.stroke();
+        gctx.beginPath(); gctx.moveTo(hw + 7, 32); gctx.lineTo(hw + 13, 32); gctx.stroke();
+
+        // First stage body (long lower section)
+        const bodyGrad = gctx.createLinearGradient(-hw, 0, hw, 0);
+        bodyGrad.addColorStop(0, '#c8ccd0');
+        bodyGrad.addColorStop(0.25, '#f0f2f4');
+        bodyGrad.addColorStop(0.5, '#fff');
+        bodyGrad.addColorStop(0.75, '#f0f2f4');
+        bodyGrad.addColorStop(1, '#bcc0c4');
         gctx.fillStyle = bodyGrad;
+        gctx.fillRect(-hw, -20, hw * 2, 48);
+        gctx.strokeStyle = 'rgba(150,155,160,0.4)';
+        gctx.lineWidth = 0.5;
+        gctx.strokeRect(-hw, -20, hw * 2, 48);
+
+        // Engine bell section (slightly wider at bottom)
+        gctx.beginPath();
+        gctx.moveTo(-hw, 28);
+        gctx.lineTo(-hw - 2, 32);
+        gctx.lineTo(hw + 2, 32);
+        gctx.lineTo(hw, 28);
+        gctx.fillStyle = '#a0a4a8';
         gctx.fill();
-        gctx.strokeStyle = '#747d8c';
-        gctx.lineWidth = 1;
+
+        // Engine nozzles
+        gctx.fillStyle = '#555';
+        gctx.beginPath(); gctx.ellipse(-3, 31, 2, 3, 0, 0, Math.PI * 2); gctx.fill();
+        gctx.beginPath(); gctx.ellipse(3, 31, 2, 3, 0, 0, Math.PI * 2); gctx.fill();
+        gctx.fillStyle = '#666';
+        gctx.beginPath(); gctx.ellipse(0, 32, 1.5, 2.5, 0, 0, Math.PI * 2); gctx.fill();
+
+        // Interstage (dark band)
+        gctx.fillStyle = '#1a1a2e';
+        gctx.fillRect(-hw - 0.5, -22, hw * 2 + 1, 4);
+
+        // Second stage (shorter upper section)
+        const s2Grad = gctx.createLinearGradient(-hw + 1, 0, hw - 1, 0);
+        s2Grad.addColorStop(0, '#d4d8dc');
+        s2Grad.addColorStop(0.3, '#f5f7f9');
+        s2Grad.addColorStop(0.7, '#f5f7f9');
+        s2Grad.addColorStop(1, '#c4c8cc');
+        gctx.fillStyle = s2Grad;
+        gctx.fillRect(-hw + 1, -38, hw * 2 - 2, 16);
+        gctx.strokeStyle = 'rgba(150,155,160,0.3)';
+        gctx.lineWidth = 0.4;
+        gctx.strokeRect(-hw + 1, -38, hw * 2 - 2, 16);
+
+        // Payload fairing (nose cone)
+        gctx.beginPath();
+        gctx.moveTo(0, -55);
+        gctx.quadraticCurveTo(hw + 2, -44, hw + 1, -38);
+        gctx.lineTo(-hw - 1, -38);
+        gctx.quadraticCurveTo(-hw - 2, -44, 0, -55);
+        const fairGrad = gctx.createLinearGradient(-hw, -50, hw, -40);
+        fairGrad.addColorStop(0, '#d1d5d9');
+        fairGrad.addColorStop(0.3, '#eef0f2');
+        fairGrad.addColorStop(0.7, '#eef0f2');
+        fairGrad.addColorStop(1, '#c0c4c8');
+        gctx.fillStyle = fairGrad;
+        gctx.fill();
+        gctx.strokeStyle = 'rgba(150,155,160,0.3)';
+        gctx.lineWidth = 0.5;
         gctx.stroke();
 
-        gctx.beginPath();
-        gctx.arc(0, -8, 6, 0, Math.PI * 2);
-        const winGrad = gctx.createRadialGradient(-2, -10, 1, 0, -8, 6);
-        winGrad.addColorStop(0, '#74b9ff');
-        winGrad.addColorStop(1, '#0984e3');
-        gctx.fillStyle = winGrad;
-        gctx.fill();
-        gctx.strokeStyle = '#636e72';
-        gctx.lineWidth = 1;
-        gctx.stroke();
+        // Fairing separation line
+        gctx.setLineDash([2, 2]);
+        gctx.strokeStyle = 'rgba(120,125,130,0.4)';
+        gctx.beginPath(); gctx.moveTo(-hw, -38); gctx.lineTo(hw, -38); gctx.stroke();
+        gctx.setLineDash([]);
 
-        gctx.beginPath();
-        gctx.moveTo(0, -30);
-        gctx.quadraticCurveTo(6, -22, 5, -16);
-        gctx.lineTo(-5, -16);
-        gctx.quadraticCurveTo(-6, -22, 0, -30);
-        gctx.fillStyle = '#ff6b6b';
-        gctx.fill();
+        // Grid fins
+        gctx.fillStyle = '#707880';
+        gctx.fillRect(-hw - 8, -18, 8, 3);
+        gctx.fillRect(hw, -18, 8, 3);
 
-        gctx.fillStyle = '#ff6b6b';
-        gctx.beginPath(); gctx.moveTo(-16, 12); gctx.lineTo(-26, 26); gctx.lineTo(-14, 20); gctx.fill();
-        gctx.beginPath(); gctx.moveTo(16, 12); gctx.lineTo(26, 26); gctx.lineTo(14, 20); gctx.fill();
+        // SpaceX-style blue accent
+        gctx.fillStyle = 'rgba(0,82,136,0.5)';
+        gctx.fillRect(-hw + 2, 2, hw * 2 - 4, 3);
+
+        // Center panel line
+        gctx.strokeStyle = 'rgba(200,205,210,0.3)';
+        gctx.lineWidth = 0.3;
+        gctx.beginPath(); gctx.moveTo(0, -38); gctx.lineTo(0, 28); gctx.stroke();
 
         gctx.restore();
     }
@@ -725,7 +839,7 @@
     }
 
     // ─── Crash ───
-    function triggerCrash(asteroidX, asteroidY) {
+    function triggerCrash(asteroidX, asteroidY, dramatic = false) {
         gameRunning = false;
         crashing = true;
         crashTime = Date.now();
@@ -734,34 +848,42 @@
         crashAngle = 0;
         crashScale = 1;
 
-        crashType = Math.floor(Math.random() * 4);
+        if (dramatic) {
+            // Forced dramatic spin: launched upward then tumbles down
+            crashType = attemptCount === 1 ? 2 : 1;
+        } else {
+            crashType = Math.floor(Math.random() * 4);
+        }
+
         const impactAngle = Math.atan2(rocketY - asteroidY, rocketX - asteroidX);
+        const dramaticMult = dramatic ? 1.6 : 1;
 
         switch (crashType) {
             case 0:
-                crashVX = Math.cos(impactAngle) * (4 + Math.random() * 3);
-                crashVY = Math.sin(impactAngle) * (4 + Math.random() * 3) - 2;
-                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.08 + Math.random() * 0.12);
+                crashVX = Math.cos(impactAngle) * (4 + Math.random() * 3) * dramaticMult;
+                crashVY = Math.sin(impactAngle) * (4 + Math.random() * 3) * dramaticMult - 2;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.08 + Math.random() * 0.12) * dramaticMult;
                 break;
             case 1:
-                crashVX = (Math.random() - 0.5) * 3;
-                crashVY = -4;
-                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.15 + Math.random() * 0.1);
+                crashVX = (Math.random() - 0.5) * 3 * dramaticMult;
+                crashVY = -4 * dramaticMult;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.18 + Math.random() * 0.12) * dramaticMult;
                 break;
             case 2:
-                crashVX = (Math.random() - 0.5) * 5;
-                crashVY = -(8 + Math.random() * 4);
-                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.05 + Math.random() * 0.05);
+                crashVX = (Math.random() - 0.5) * 5 * dramaticMult;
+                crashVY = -(10 + Math.random() * 5) * dramaticMult;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.06 + Math.random() * 0.06) * dramaticMult;
                 break;
             case 3:
                 crashVX = 0;
                 crashVY = 0;
-                crashSpin = (Math.random() > 0.5 ? 1 : -1) * 0.2;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * 0.25 * dramaticMult;
                 break;
         }
 
+        const burstCount = dramatic ? 60 : 40;
         const burstColors = ['#ff6b6b', '#feca57', '#ff9f43', '#fff', '#ee5a24'];
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < burstCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 2 + Math.random() * 6;
             particles.push({
@@ -773,8 +895,8 @@
             });
         }
 
-        const debrisColors = ['#d1d8e0', '#ff6b6b', '#a4b0be', '#747d8c', '#0984e3'];
-        const debrisCount = 8 + Math.floor(Math.random() * 8);
+        const debrisColors = ['#f0f2f4', '#d1d8e0', '#a4b0be', '#707880', '#1a1a2e', '#005288'];
+        const debrisCount = dramatic ? 16 + Math.floor(Math.random() * 8) : 8 + Math.floor(Math.random() * 8);
         for (let i = 0; i < debrisCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 1.5 + Math.random() * 5;
@@ -793,7 +915,7 @@
             });
         }
 
-        shakeAmount = 20;
+        shakeAmount = dramatic ? 35 : 20;
         crashLoop();
     }
 
@@ -908,7 +1030,13 @@
         for (let i = entities.length - 1; i >= 0; i--) {
             const e = entities[i];
             e.y += e.speed;
-            if (e.type === 'asteroid') e.rotation += e.rotSpeed;
+            if (e.type === 'asteroid') {
+                e.rotation += e.rotSpeed;
+                if (e.homing) {
+                    const dx = rocketX - e.x;
+                    e.x += dx * 0.03;
+                }
+            }
             if (e.y > canvas.height + 60) { entities.splice(i, 1); continue; }
             const distX = e.x - rocketX, distY = e.y - rocketY;
             const dist = Math.sqrt(distX * distX + distY * distY);
@@ -918,8 +1046,8 @@
                 spawnParticles(e.x, e.y, '#feca57', 15);
                 entities.splice(i, 1); continue;
             }
-            if (e.type === 'asteroid' && dist < e.size * 0.5 + 14) {
-                triggerCrash(e.x, e.y);
+            if (e.type === 'asteroid' && dist < e.size * 0.45 + 16) {
+                triggerCrash(e.x, e.y, !!e.homing);
                 return;
             }
         }
@@ -938,10 +1066,10 @@
 
         if (Math.random() < 0.6) {
             particles.push({
-                x: rocketX + (Math.random() - 0.5) * 10, y: rocketY + 25,
-                vx: (Math.random() - 0.5), vy: 2 + Math.random() * 2,
-                life: 0.6, decay: 0.02, size: 2 + Math.random() * 3,
-                color: Math.random() < 0.5 ? '#feca57' : '#ff6b6b'
+                x: rocketX + (Math.random() - 0.5) * 8, y: rocketY + 35,
+                vx: (Math.random() - 0.5), vy: 2 + Math.random() * 3,
+                life: 0.5, decay: 0.02, size: 2 + Math.random() * 3,
+                color: Math.random() < 0.3 ? '#fff' : Math.random() < 0.5 ? '#feca57' : '#ff9f43'
             });
         }
 
@@ -977,8 +1105,8 @@
         const steps = [
             { idx: 0, text: 'Mission complete at Starlink...', delay: 0 },
             { idx: 1, text: 'Systems reconfiguring...', delay: 2000 },
-            { idx: 2, text: 'Loading Physical Intelligence OS...', delay: 4000 },
-            { idx: 3, text: 'Welcome to PI, Shihao.', delay: 6000 },
+            { idx: 2, text: 'New mission loading...', delay: 4000 },
+            { idx: 3, text: 'Almost there...', delay: 6000 },
         ];
 
         steps.forEach(step => {
@@ -995,87 +1123,59 @@
 
     // ─── Confetti (canvas-confetti library) ───
     function startConfetti() {
+        confettiSessionId++;
+        confettiTimers.forEach(t => clearTimeout(t));
+        confettiTimers = [];
+        confetti.reset();
+
+        const session = confettiSessionId;
         const colors = ['#48dbfb', '#a29bfe', '#fd79a8', '#feca57', '#55efc4', '#ff6b6b', '#74b9ff'];
 
-        // Big initial center burst with stars
         confetti({
             particleCount: 120,
             spread: 100,
             startVelocity: 50,
             origin: { x: 0.5, y: 0.6 },
-            colors: colors,
-            shapes: ['star', 'circle'],
-            scalar: 1.2,
-            ticks: 300,
-            gravity: 0.8
+            colors, shapes: ['star', 'circle'],
+            scalar: 1.2, ticks: 300, gravity: 0.8
         });
 
-        // Delayed secondary burst
-        setTimeout(() => {
+        confettiTimers.push(setTimeout(() => {
+            if (confettiSessionId !== session) return;
             confetti({
-                particleCount: 60,
-                spread: 140,
-                startVelocity: 35,
+                particleCount: 60, spread: 140, startVelocity: 35,
                 origin: { x: 0.5, y: 0.5 },
-                colors: colors,
-                shapes: ['star', 'circle', 'square'],
-                scalar: 0.9,
-                ticks: 250
+                colors, shapes: ['star', 'circle', 'square'],
+                scalar: 0.9, ticks: 250
             });
-        }, 400);
+        }, 400));
 
-        // Continuous side cannons for ~6 seconds
         const duration = 6000;
         const end = Date.now() + duration;
-
         (function frame() {
+            if (confettiSessionId !== session) return;
             confetti({
-                particleCount: 3,
-                angle: 60,
-                spread: 55,
-                startVelocity: 40,
-                origin: { x: 0, y: 0.7 },
-                colors: colors,
-                shapes: ['star', 'circle'],
-                scalar: 0.8,
-                ticks: 200,
-                gravity: 0.9,
-                drift: 0.5
+                particleCount: 3, angle: 60, spread: 55, startVelocity: 40,
+                origin: { x: 0, y: 0.7 }, colors, shapes: ['star', 'circle'],
+                scalar: 0.8, ticks: 200, gravity: 0.9, drift: 0.5
             });
             confetti({
-                particleCount: 3,
-                angle: 120,
-                spread: 55,
-                startVelocity: 40,
-                origin: { x: 1, y: 0.7 },
-                colors: colors,
-                shapes: ['star', 'circle'],
-                scalar: 0.8,
-                ticks: 200,
-                gravity: 0.9,
-                drift: -0.5
+                particleCount: 3, angle: 120, spread: 55, startVelocity: 40,
+                origin: { x: 1, y: 0.7 }, colors, shapes: ['star', 'circle'],
+                scalar: 0.8, ticks: 200, gravity: 0.9, drift: -0.5
             });
-
-            if (Date.now() < end) {
-                requestAnimationFrame(frame);
-            }
+            if (Date.now() < end) requestAnimationFrame(frame);
         }());
 
-        // Firework pops at random spots
         [800, 1600, 2400, 3200, 4200].forEach(delay => {
-            setTimeout(() => {
+            confettiTimers.push(setTimeout(() => {
+                if (confettiSessionId !== session) return;
                 confetti({
-                    particleCount: 40,
-                    spread: 360,
-                    startVelocity: 25,
+                    particleCount: 40, spread: 360, startVelocity: 25,
                     origin: { x: 0.2 + Math.random() * 0.6, y: 0.2 + Math.random() * 0.4 },
-                    colors: colors,
-                    shapes: ['star'],
-                    scalar: 1.1,
-                    ticks: 180,
-                    gravity: 0.6
+                    colors, shapes: ['star'], scalar: 1.1, ticks: 180, gravity: 0.6
                 });
-            }, delay);
+            }, delay));
         });
     }
     </script>
