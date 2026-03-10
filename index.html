@@ -525,6 +525,7 @@
     let scriptedCrashScheduled = false;
     let confettiTimers = [];
     let confettiSessionId = 0;
+    let transitionTimers = [];
 
     const canvas = document.getElementById('game-canvas');
     const gctx = canvas.getContext('2d');
@@ -545,6 +546,8 @@
         confettiSessionId++;
         confettiTimers.forEach(t => clearTimeout(t));
         confettiTimers = [];
+        transitionTimers.forEach(t => clearTimeout(t));
+        transitionTimers = [];
         confetti.reset();
         startGame();
     }
@@ -625,25 +628,25 @@
         const elapsed = Date.now() - gameStartTime;
         const difficulty = Math.min(elapsed / GAME_DURATION, 1);
 
-        if (Math.random() < 0.3 + difficulty * 0.15) {
+        if (Math.random() < 0.4 + difficulty * 0.2) {
             const size = 24 + Math.random() * 30;
-            const isFast = Math.random() < 0.2 + difficulty * 0.3;
+            const isFast = Math.random() < 0.3 + difficulty * 0.35;
             entities.push({
                 type: 'asteroid', x: Math.random() * canvas.width, y: -size, size,
-                speed: isFast ? (6 + Math.random() * 4 + difficulty * 4) : (2 + Math.random() * 2.5 + difficulty * 2),
+                speed: isFast ? (7 + Math.random() * 4 + difficulty * 5) : (2.5 + Math.random() * 2.5 + difficulty * 2),
                 rotation: Math.random() * Math.PI * 2,
                 rotSpeed: (Math.random() - 0.5) * 0.05,
                 vertices: generateAsteroidVertices(size)
             });
         }
-        if (Math.random() < 0.12) {
+        if (Math.random() < 0.1) {
             entities.push({
                 type: 'pie', x: 60 + Math.random() * (canvas.width - 120), y: -30,
                 size: 22, speed: 1.5 + Math.random() * 2,
                 bobPhase: Math.random() * Math.PI * 2
             });
         }
-        setTimeout(spawnLoop, Math.max(300 - difficulty * 100, 150));
+        setTimeout(spawnLoop, Math.max(250 - difficulty * 100, 120));
     }
 
     function generateAsteroidVertices(size) {
@@ -1099,9 +1102,15 @@
 
     // ─── Transition ───
     function startTransition() {
+        transitionTimers.forEach(t => clearTimeout(t));
+        transitionTimers = [];
+
         showScreen('transition-screen');
         const icons = document.querySelectorAll('#transition-screen .morph-icon');
         const text = document.getElementById('morph-text');
+        text.textContent = '';
+        text.style.opacity = 0;
+        icons.forEach(ic => ic.classList.remove('active'));
 
         const steps = [
             { idx: 0, text: 'Mission complete at Starlink...', delay: 0 },
@@ -1111,15 +1120,23 @@
         ];
 
         steps.forEach(step => {
-            setTimeout(() => {
+            transitionTimers.push(setTimeout(() => {
                 icons.forEach(ic => ic.classList.remove('active'));
                 icons[step.idx].classList.add('active');
                 text.style.opacity = 0;
-                setTimeout(() => { text.textContent = step.text; text.style.opacity = 1; }, 300);
-            }, step.delay);
+                transitionTimers.push(setTimeout(() => {
+                    text.textContent = step.text;
+                    text.style.opacity = 1;
+                }, 400));
+            }, step.delay));
         });
 
-        setTimeout(() => { showScreen('celebration'); startConfetti(); }, 8500);
+        transitionTimers.push(setTimeout(() => {
+            transitionTimers.forEach(t => clearTimeout(t));
+            transitionTimers = [];
+            showScreen('celebration');
+            startConfetti();
+        }, 8500));
     }
 
     // ─── Confetti (canvas-confetti library) ───
