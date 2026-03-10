@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Congratulations Shihao</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            background: #0a0a2e;
+            color: #fff;
+            user-select: none;
+        }
+
+        #starfield {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+        .screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+
+        /* ── Welcome ── */
+        #welcome { text-align: center; }
+        #welcome h1 {
+            font-size: clamp(2rem, 6vw, 4rem);
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease infinite;
+        }
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        #welcome .subtitle {
+            font-size: clamp(1rem, 3vw, 1.5rem);
+            color: #a0a0d0;
+            margin-bottom: 2rem;
+            font-family: 'Space Mono', monospace;
+        }
+
+        .icon-hero {
+            width: 70px;
+            height: 200px;
+            margin-bottom: 2rem;
+            animation: heroBob 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 25px rgba(255, 140, 50, 0.3));
+        }
+        .icon-hero svg {
+            width: 100%;
+            height: 100%;
+        }
+        @keyframes heroBob {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-18px); }
+        }
+
+        .launch-btn {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            padding: 16px 48px;
+            border: none;
+            border-radius: 50px;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 30px rgba(255, 107, 107, 0.4);
+        }
+        .launch-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 40px rgba(255, 107, 107, 0.6);
+        }
+        .launch-btn:active { transform: translateY(0); }
+
+        /* ── Game ── */
+        #game-screen { padding: 0; }
+        #game-canvas { display: block; width: 100%; height: 100%; }
+        #game-hud {
+            position: absolute;
+            top: 20px; left: 0; right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 20;
+            padding: 0 20px;
+        }
+        .hud-box {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 8px 20px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hud-box .hud-icon {
+            width: 18px;
+            height: 18px;
+            stroke: #feca57;
+            fill: none;
+            stroke-width: 2;
+        }
+        .progress-bar-container {
+            flex: 1;
+            max-width: 400px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.75rem;
+        }
+        .progress-bar-track {
+            flex: 1;
+            height: 8px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: #a0a0d0;
+            min-width: max-content;
+        }
+        #game-instructions {
+            position: absolute;
+            bottom: 40px;
+            left: 0; right: 0;
+            text-align: center;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.5);
+            z-index: 20;
+            transition: opacity 1s ease;
+        }
+
+        /* ── Transition ── */
+        #transition-screen {
+            background: radial-gradient(ellipse at center, #1a1a4e 0%, #0a0a2e 100%);
+        }
+        .morph-container {
+            position: relative;
+            width: 140px;
+            height: 140px;
+        }
+        .morph-icon {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.7);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .morph-icon.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .morph-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke-width: 1.5;
+            fill: none;
+        }
+        .morph-icon.rocket-icon svg { stroke: #ff6b6b; filter: drop-shadow(0 0 15px rgba(255,107,107,0.5)); }
+        .morph-icon.sparkle-icon svg { stroke: #feca57; filter: drop-shadow(0 0 15px rgba(254,202,87,0.5)); }
+        .morph-icon.cog-icon svg { stroke: #a0a0d0; filter: drop-shadow(0 0 15px rgba(160,160,208,0.5)); }
+        .morph-icon.bot-icon svg { stroke: #48dbfb; filter: drop-shadow(0 0 15px rgba(72,219,251,0.5)); }
+
+        #transition-screen .morph-text {
+            font-size: clamp(1.2rem, 3vw, 1.6rem);
+            margin-top: 2.5rem;
+            font-family: 'Space Mono', monospace;
+            color: #a0a0d0;
+            text-align: center;
+            line-height: 1.6;
+            min-height: 2em;
+            transition: opacity 0.4s ease;
+        }
+
+        /* ── Celebration ── */
+        #celebration {
+            background: radial-gradient(ellipse at center, #1a1050 0%, #0a0a2e 100%);
+            text-align: center;
+            gap: 1.5rem;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+        .robot-cluster {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+        }
+        .robot-cluster svg {
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .robot-sm {
+            width: 44px;
+            height: 44px;
+            stroke: #a29bfe;
+            stroke-width: 1.5;
+            filter: drop-shadow(0 0 12px rgba(162,155,254,0.4));
+            animation: botFloat 2.5s ease-in-out infinite;
+        }
+        .robot-md {
+            width: 60px;
+            height: 60px;
+            stroke: #74b9ff;
+            stroke-width: 1.5;
+            filter: drop-shadow(0 0 16px rgba(116,185,255,0.4));
+            animation: botFloat 2.8s ease-in-out infinite 0.3s;
+        }
+        .robot-lg {
+            width: 90px;
+            height: 90px;
+            stroke: #48dbfb;
+            stroke-width: 1.5;
+            filter: drop-shadow(0 0 24px rgba(72,219,251,0.5));
+            animation: botFloat 3s ease-in-out infinite 0.15s;
+        }
+        @keyframes botFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        #celebration h1 {
+            font-size: clamp(1.8rem, 5vw, 3.5rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, #48dbfb, #a29bfe, #fd79a8);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 4s ease infinite;
+        }
+        #celebration .welcome-line {
+            font-family: 'Space Mono', monospace;
+            font-size: clamp(1rem, 2.5vw, 1.3rem);
+            color: #a0a0d0;
+        }
+        .replay-btn {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 12px 36px;
+            border: 2px solid rgba(72, 219, 251, 0.4);
+            border-radius: 50px;
+            background: rgba(72, 219, 251, 0.1);
+            color: #48dbfb;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+            backdrop-filter: blur(10px);
+            margin-top: 0.5rem;
+        }
+        .replay-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(72, 219, 251, 0.2);
+            box-shadow: 0 4px 25px rgba(72, 219, 251, 0.3);
+        }
+        .replay-btn:active { transform: translateY(0); }
+
+        @media (max-width: 600px) {
+            .hud-box { padding: 6px 12px; font-size: 0.75rem; }
+            .progress-bar-container { padding: 6px 10px; }
+            #game-hud { gap: 8px; }
+            .icon-hero { width: 50px; height: 150px; }
+            .morph-container { width: 100px; height: 100px; }
+            .robot-sm { width: 32px; height: 32px; }
+            .robot-md { width: 44px; height: 44px; }
+            .robot-lg { width: 64px; height: 64px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starfield"></canvas>
+
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+        <!-- Falcon 9-style rocket -->
+        <symbol id="ico-falcon9" viewBox="0 0 80 320">
+            <!-- Payload fairing (nose cone) -->
+            <path d="M28,80 Q28,15 40,0 Q52,15 52,80" fill="#e8eaed" stroke="#bcc0c4" stroke-width="0.8"/>
+            <path d="M28,80 Q26,80 25,85 L25,92 L55,92 L55,85 Q54,80 52,80" fill="#d1d5d9" stroke="#bcc0c4" stroke-width="0.8"/>
+            <!-- Fairing separation line -->
+            <line x1="28" y1="80" x2="52" y2="80" stroke="#a0a4a8" stroke-width="0.5" stroke-dasharray="2,2"/>
+            <!-- Second stage -->
+            <rect x="30" y="92" width="20" height="42" fill="#f0f2f4" stroke="#c8ccd0" stroke-width="0.6"/>
+            <!-- Interstage (dark band) -->
+            <rect x="29" y="132" width="22" height="10" fill="#1a1a2e" stroke="#333" stroke-width="0.5" rx="1"/>
+            <!-- First stage body -->
+            <rect x="29" y="142" width="22" height="130" fill="#f0f2f4" stroke="#c8ccd0" stroke-width="0.6"/>
+            <!-- SpaceX-style blue stripe -->
+            <rect x="31" y="190" width="18" height="6" fill="#005288" rx="1" opacity="0.7"/>
+            <!-- Grid fins -->
+            <rect x="16" y="150" width="13" height="4" rx="1" fill="#707880" stroke="#555" stroke-width="0.4"/>
+            <rect x="51" y="150" width="13" height="4" rx="1" fill="#707880" stroke="#555" stroke-width="0.4"/>
+            <!-- Octaweb / engine section -->
+            <path d="M29,272 L26,284 L54,284 L51,272" fill="#c8ccd0" stroke="#a0a4a8" stroke-width="0.6"/>
+            <!-- Engine nozzles (9 Merlins) -->
+            <ellipse cx="34" cy="286" rx="3" ry="5" fill="#555" stroke="#444" stroke-width="0.4"/>
+            <ellipse cx="40" cy="286" rx="3" ry="5" fill="#555" stroke="#444" stroke-width="0.4"/>
+            <ellipse cx="46" cy="286" rx="3" ry="5" fill="#555" stroke="#444" stroke-width="0.4"/>
+            <ellipse cx="37" cy="291" rx="2.5" ry="4" fill="#666" stroke="#555" stroke-width="0.3"/>
+            <ellipse cx="43" cy="291" rx="2.5" ry="4" fill="#666" stroke="#555" stroke-width="0.3"/>
+            <!-- Landing legs (folded) -->
+            <line x1="29" y1="258" x2="18" y2="296" stroke="#707880" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="51" y1="258" x2="62" y2="296" stroke="#707880" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- Leg feet -->
+            <line x1="14" y1="296" x2="22" y2="296" stroke="#707880" stroke-width="2" stroke-linecap="round"/>
+            <line x1="58" y1="296" x2="66" y2="296" stroke="#707880" stroke-width="2" stroke-linecap="round"/>
+            <!-- Subtle body panel lines -->
+            <line x1="40" y1="92" x2="40" y2="132" stroke="#d8dcdf" stroke-width="0.3"/>
+            <line x1="40" y1="142" x2="40" y2="272" stroke="#d8dcdf" stroke-width="0.3"/>
+            <!-- Flame -->
+            <path d="M33,295 Q36,310 40,320 Q44,310 47,295" fill="url(#flame-grad)" opacity="0.9"/>
+            <path d="M36,295 Q38,306 40,314 Q42,306 44,295" fill="url(#flame-inner)" opacity="0.9"/>
+        </symbol>
+        <defs>
+            <linearGradient id="flame-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#feca57"/>
+                <stop offset="50%" stop-color="#ff6b6b"/>
+                <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="flame-inner" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fff"/>
+                <stop offset="100%" stop-color="#feca57" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+
+        <symbol id="ico-rocket" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+        </symbol>
+        <symbol id="ico-bot" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8V4H8"/>
+            <rect width="16" height="12" x="4" y="8" rx="2"/>
+            <path d="M2 14h2"/>
+            <path d="M20 14h2"/>
+            <path d="M15 13v2"/>
+            <path d="M9 13v2"/>
+        </symbol>
+        <symbol id="ico-sparkles" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
+            <path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>
+        </symbol>
+        <symbol id="ico-cog" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+        </symbol>
+        <symbol id="ico-pie" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+        </symbol>
+    </svg>
+
+    <!-- Welcome Screen -->
+    <div id="welcome" class="screen">
+        <div class="icon-hero">
+            <svg><use href="#ico-falcon9"/></svg>
+        </div>
+        <h1>Hey Shihao!</h1>
+        <p class="subtitle">Mission briefing: navigate to your next adventure</p>
+        <br>
+        <button class="launch-btn" onclick="startGame()">Launch Mission</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen hidden">
+        <canvas id="game-canvas"></canvas>
+        <div id="game-hud">
+            <div class="hud-box">
+                <svg class="hud-icon"><use href="#ico-pie"/></svg>
+                <span><span id="pie-count">0</span> / π</span>
+            </div>
+            <div class="progress-bar-container">
+                <span class="progress-label">Starlink</span>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <span class="progress-label">π.ai</span>
+            </div>
+        </div>
+        <div id="game-instructions">Move mouse or touch to steer &middot; Collect the pies &middot; Dodge the asteroids</div>
+    </div>
+
+    <!-- Transition Screen -->
+    <div id="transition-screen" class="screen hidden">
+        <div class="morph-container">
+            <div class="morph-icon rocket-icon active"><svg><use href="#ico-rocket"/></svg></div>
+            <div class="morph-icon sparkle-icon"><svg><use href="#ico-sparkles"/></svg></div>
+            <div class="morph-icon cog-icon"><svg><use href="#ico-cog"/></svg></div>
+            <div class="morph-icon bot-icon"><svg><use href="#ico-bot"/></svg></div>
+        </div>
+        <div class="morph-text" id="morph-text"></div>
+    </div>
+
+    <!-- Celebration Screen -->
+    <div id="celebration" class="screen hidden">
+        <div class="robot-cluster">
+            <svg class="robot-sm"><use href="#ico-bot"/></svg>
+            <svg class="robot-md"><use href="#ico-bot"/></svg>
+            <svg class="robot-lg"><use href="#ico-bot"/></svg>
+            <svg class="robot-md"><use href="#ico-bot"/></svg>
+            <svg class="robot-sm"><use href="#ico-bot"/></svg>
+        </div>
+        <h1>Congratulations, Shihao</h1>
+        <p class="welcome-line">Welcome to Physical Intelligence</p>
+        <button class="replay-btn" onclick="playAgain()">Play Again</button>
+    </div>
+
+    <script>
+    // ─── Starfield ───
+    (() => {
+        const c = document.getElementById('starfield');
+        const ctx = c.getContext('2d');
+        let stars = [];
+        function resize() {
+            c.width = window.innerWidth;
+            c.height = window.innerHeight;
+            stars = Array.from({ length: 200 }, () => ({
+                x: Math.random() * c.width,
+                y: Math.random() * c.height,
+                r: Math.random() * 1.5 + 0.5,
+                speed: Math.random() * 0.5 + 0.1,
+                twinkle: Math.random() * Math.PI * 2
+            }));
+        }
+        window.addEventListener('resize', resize);
+        resize();
+        function draw() {
+            ctx.fillStyle = '#0a0a2e';
+            ctx.fillRect(0, 0, c.width, c.height);
+            const t = Date.now() * 0.001;
+            stars.forEach(s => {
+                const alpha = 0.4 + 0.6 * Math.abs(Math.sin(t + s.twinkle));
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+                ctx.fill();
+                s.y += s.speed;
+                if (s.y > c.height) { s.y = 0; s.x = Math.random() * c.width; }
+            });
+            requestAnimationFrame(draw);
+        }
+        draw();
+    })();
+
+    // ─── Game State ───
+    const PIES_NEEDED = 5;
+    const GAME_DURATION = 25000;
+    let gameRunning = false;
+    let gameStartTime = 0;
+    let piesCollected = 0;
+    let rocketX = 0, rocketY = 0, targetX = 0;
+    let entities = [], particles = [];
+    let debris = [];
+    let gameProgress = 0;
+    let instructionOpacity = 1;
+    let shakeAmount = 0;
+    let crashing = false;
+    let crashTime = 0;
+    let crashRocketX = 0, crashRocketY = 0;
+    let crashVX = 0, crashVY = 0;
+    let crashSpin = 0, crashAngle = 0;
+    let crashScale = 1;
+    let crashType = 0;
+
+    const canvas = document.getElementById('game-canvas');
+    const gctx = canvas.getContext('2d');
+
+    function resizeGameCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeGameCanvas);
+    resizeGameCanvas();
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function playAgain() {
+        confetti.reset();
+        startGame();
+    }
+
+    function startGame() {
+        showScreen('game-screen');
+        resizeGameCanvas();
+        gameRunning = true;
+        crashing = false;
+        gameStartTime = Date.now();
+        piesCollected = 0;
+        gameProgress = 0;
+        entities = [];
+        particles = [];
+        debris = [];
+        rocketX = canvas.width / 2;
+        rocketY = canvas.height * 0.75;
+        targetX = rocketX;
+        instructionOpacity = 1;
+        document.getElementById('pie-count').textContent = '0';
+        document.getElementById('progress-fill').style.width = '0%';
+        document.getElementById('game-hud').style.opacity = '1';
+        setTimeout(() => { instructionOpacity = 0; }, 4000);
+        gameLoop();
+        spawnLoop();
+    }
+
+    // ─── Input ───
+    function handlePointer(e) {
+        if (!gameRunning || crashing) return;
+        targetX = e.touches ? e.touches[0].clientX : e.clientX;
+    }
+    window.addEventListener('mousemove', handlePointer);
+    window.addEventListener('touchmove', handlePointer, { passive: true });
+    window.addEventListener('touchstart', handlePointer, { passive: true });
+
+    // ─── Spawning ───
+    function spawnLoop() {
+        if (!gameRunning || crashing) return;
+        const elapsed = Date.now() - gameStartTime;
+        const difficulty = Math.min(elapsed / GAME_DURATION, 1);
+
+        if (Math.random() < 0.5 + difficulty * 0.35) {
+            const size = 22 + Math.random() * 32;
+            entities.push({
+                type: 'asteroid', x: Math.random() * canvas.width, y: -size, size,
+                speed: 2.5 + Math.random() * 3 + difficulty * 2.5,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.05,
+                vertices: generateAsteroidVertices(size)
+            });
+        }
+        if (Math.random() < 0.12) {
+            entities.push({
+                type: 'pie', x: 60 + Math.random() * (canvas.width - 120), y: -30,
+                size: 22, speed: 1.5 + Math.random() * 2,
+                bobPhase: Math.random() * Math.PI * 2
+            });
+        }
+        setTimeout(spawnLoop, Math.max(300 - difficulty * 150, 100));
+    }
+
+    function generateAsteroidVertices(size) {
+        const count = 7 + Math.floor(Math.random() * 4);
+        return Array.from({ length: count }, (_, i) => {
+            const angle = (i / count) * Math.PI * 2;
+            const r = size * (0.6 + Math.random() * 0.4);
+            return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+        });
+    }
+
+    // ─── Canvas Drawing ───
+    function drawRocket(x, y, scale = 1, angle = 0, alpha = 1) {
+        gctx.save();
+        gctx.translate(x, y);
+        gctx.rotate(angle);
+        gctx.scale(scale, scale);
+        gctx.globalAlpha = alpha;
+
+        const flicker = Math.random() * 8;
+
+        const flameGrad = gctx.createLinearGradient(0, 20, 0, 50 + flicker);
+        flameGrad.addColorStop(0, '#feca57');
+        flameGrad.addColorStop(0.5, '#ff6b6b');
+        flameGrad.addColorStop(1, 'rgba(255,100,50,0)');
+        gctx.beginPath();
+        gctx.moveTo(-10, 20);
+        gctx.quadraticCurveTo(-5, 35 + flicker, 0, 50 + flicker);
+        gctx.quadraticCurveTo(5, 35 + flicker, 10, 20);
+        gctx.fillStyle = flameGrad;
+        gctx.fill();
+
+        const innerGrad = gctx.createLinearGradient(0, 20, 0, 38 + flicker * 0.6);
+        innerGrad.addColorStop(0, '#fff');
+        innerGrad.addColorStop(1, 'rgba(255,200,50,0)');
+        gctx.beginPath();
+        gctx.moveTo(-5, 20);
+        gctx.quadraticCurveTo(-2, 28 + flicker * 0.6, 0, 38 + flicker * 0.6);
+        gctx.quadraticCurveTo(2, 28 + flicker * 0.6, 5, 20);
+        gctx.fillStyle = innerGrad;
+        gctx.fill();
+
+        gctx.beginPath();
+        gctx.moveTo(0, -30);
+        gctx.quadraticCurveTo(18, -10, 16, 20);
+        gctx.lineTo(-16, 20);
+        gctx.quadraticCurveTo(-18, -10, 0, -30);
+        const bodyGrad = gctx.createLinearGradient(-16, 0, 16, 0);
+        bodyGrad.addColorStop(0, '#d1d8e0');
+        bodyGrad.addColorStop(0.3, '#fff');
+        bodyGrad.addColorStop(1, '#a4b0be');
+        gctx.fillStyle = bodyGrad;
+        gctx.fill();
+        gctx.strokeStyle = '#747d8c';
+        gctx.lineWidth = 1;
+        gctx.stroke();
+
+        gctx.beginPath();
+        gctx.arc(0, -8, 6, 0, Math.PI * 2);
+        const winGrad = gctx.createRadialGradient(-2, -10, 1, 0, -8, 6);
+        winGrad.addColorStop(0, '#74b9ff');
+        winGrad.addColorStop(1, '#0984e3');
+        gctx.fillStyle = winGrad;
+        gctx.fill();
+        gctx.strokeStyle = '#636e72';
+        gctx.lineWidth = 1;
+        gctx.stroke();
+
+        gctx.beginPath();
+        gctx.moveTo(0, -30);
+        gctx.quadraticCurveTo(6, -22, 5, -16);
+        gctx.lineTo(-5, -16);
+        gctx.quadraticCurveTo(-6, -22, 0, -30);
+        gctx.fillStyle = '#ff6b6b';
+        gctx.fill();
+
+        gctx.fillStyle = '#ff6b6b';
+        gctx.beginPath(); gctx.moveTo(-16, 12); gctx.lineTo(-26, 26); gctx.lineTo(-14, 20); gctx.fill();
+        gctx.beginPath(); gctx.moveTo(16, 12); gctx.lineTo(26, 26); gctx.lineTo(14, 20); gctx.fill();
+
+        gctx.restore();
+    }
+
+    function drawAsteroid(e) {
+        gctx.save();
+        gctx.translate(e.x, e.y);
+        gctx.rotate(e.rotation);
+        gctx.beginPath();
+        gctx.moveTo(e.vertices[0].x, e.vertices[0].y);
+        for (let i = 1; i < e.vertices.length; i++) gctx.lineTo(e.vertices[i].x, e.vertices[i].y);
+        gctx.closePath();
+        const g = gctx.createRadialGradient(0, 0, 0, 0, 0, e.size);
+        g.addColorStop(0, '#636e72');
+        g.addColorStop(1, '#2d3436');
+        gctx.fillStyle = g;
+        gctx.fill();
+        gctx.strokeStyle = '#808e9b';
+        gctx.lineWidth = 1.5;
+        gctx.stroke();
+        gctx.fillStyle = 'rgba(0,0,0,0.2)';
+        gctx.beginPath(); gctx.arc(e.size * 0.2, -e.size * 0.1, e.size * 0.15, 0, Math.PI * 2); gctx.fill();
+        gctx.beginPath(); gctx.arc(-e.size * 0.25, e.size * 0.2, e.size * 0.1, 0, Math.PI * 2); gctx.fill();
+        gctx.restore();
+    }
+
+    function drawPie(e) {
+        const t = Date.now() * 0.003;
+        const bob = Math.sin(t + e.bobPhase) * 5;
+        gctx.save();
+        gctx.translate(e.x, e.y + bob);
+        gctx.beginPath(); gctx.arc(0, 0, e.size + 8, 0, Math.PI * 2);
+        gctx.fillStyle = 'rgba(254,202,87,0.15)'; gctx.fill();
+        gctx.beginPath(); gctx.arc(0, 0, e.size, 0, Math.PI * 2);
+        gctx.fillStyle = '#f8c291'; gctx.fill();
+        gctx.strokeStyle = '#e58e26'; gctx.lineWidth = 2; gctx.stroke();
+        gctx.beginPath(); gctx.moveTo(0, 0);
+        gctx.arc(0, 0, e.size - 3, 0.3, Math.PI * 1.8); gctx.closePath();
+        gctx.fillStyle = '#e55039'; gctx.fill();
+        gctx.fillStyle = '#fff';
+        gctx.font = `bold ${e.size}px 'Space Mono', monospace`;
+        gctx.textAlign = 'center'; gctx.textBaseline = 'middle';
+        gctx.fillText('\u03C0', 0, 2);
+        gctx.restore();
+    }
+
+    function spawnParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+                life: 1, decay: 0.015 + Math.random() * 0.02,
+                size: 2 + Math.random() * 4, color
+            });
+        }
+    }
+
+    // ─── Crash ───
+    function triggerCrash(asteroidX, asteroidY) {
+        gameRunning = false;
+        crashing = true;
+        crashTime = Date.now();
+        crashRocketX = rocketX;
+        crashRocketY = rocketY;
+        crashAngle = 0;
+        crashScale = 1;
+
+        crashType = Math.floor(Math.random() * 4);
+        const impactAngle = Math.atan2(rocketY - asteroidY, rocketX - asteroidX);
+
+        switch (crashType) {
+            case 0:
+                crashVX = Math.cos(impactAngle) * (4 + Math.random() * 3);
+                crashVY = Math.sin(impactAngle) * (4 + Math.random() * 3) - 2;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.08 + Math.random() * 0.12);
+                break;
+            case 1:
+                crashVX = (Math.random() - 0.5) * 3;
+                crashVY = -4;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.15 + Math.random() * 0.1);
+                break;
+            case 2:
+                crashVX = (Math.random() - 0.5) * 5;
+                crashVY = -(8 + Math.random() * 4);
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * (0.05 + Math.random() * 0.05);
+                break;
+            case 3:
+                crashVX = 0;
+                crashVY = 0;
+                crashSpin = (Math.random() > 0.5 ? 1 : -1) * 0.2;
+                break;
+        }
+
+        const burstColors = ['#ff6b6b', '#feca57', '#ff9f43', '#fff', '#ee5a24'];
+        for (let i = 0; i < 40; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 6;
+            particles.push({
+                x: rocketX, y: rocketY,
+                vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+                life: 1, decay: 0.01 + Math.random() * 0.015,
+                size: 3 + Math.random() * 6,
+                color: burstColors[Math.floor(Math.random() * burstColors.length)]
+            });
+        }
+
+        const debrisColors = ['#d1d8e0', '#ff6b6b', '#a4b0be', '#747d8c', '#0984e3'];
+        const debrisCount = 8 + Math.floor(Math.random() * 8);
+        for (let i = 0; i < debrisCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1.5 + Math.random() * 5;
+            debris.push({
+                x: rocketX + (Math.random() - 0.5) * 20,
+                y: rocketY + (Math.random() - 0.5) * 30,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 1,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.2,
+                w: 4 + Math.random() * 10,
+                h: 3 + Math.random() * 7,
+                color: debrisColors[Math.floor(Math.random() * debrisColors.length)],
+                life: 1,
+                decay: 0.008 + Math.random() * 0.008
+            });
+        }
+
+        shakeAmount = 20;
+        crashLoop();
+    }
+
+    function crashLoop() {
+        if (!crashing) return;
+        const elapsed = Date.now() - crashTime;
+        const t = elapsed / 1000;
+
+        shakeAmount *= 0.95;
+
+        if (crashType !== 3) {
+            crashRocketX += crashVX;
+            crashRocketY += crashVY;
+            crashVY += 0.15;
+            crashAngle += crashSpin;
+            if (crashType === 1) {
+                crashSpin *= 1.02;
+                crashVX += (Math.random() - 0.5) * 0.3;
+            }
+        }
+        crashScale = Math.max(0, 1 - t * (crashType === 3 ? 1.5 : 0.5));
+
+        if (crashScale > 0.1 && Math.random() < 0.8) {
+            particles.push({
+                x: crashRocketX + (Math.random() - 0.5) * 15,
+                y: crashRocketY + (Math.random() - 0.5) * 15,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2 - 1,
+                life: 0.8, decay: 0.015,
+                size: 4 + Math.random() * 8,
+                color: Math.random() < 0.4 ? '#ff6b6b' : '#636e72'
+            });
+        }
+
+        for (let i = debris.length - 1; i >= 0; i--) {
+            const d = debris[i];
+            d.x += d.vx; d.y += d.vy;
+            d.vy += 0.1;
+            d.rotation += d.rotSpeed;
+            d.life -= d.decay;
+            if (d.life <= 0) debris.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            p.vy += 0.03;
+            p.life -= p.decay;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        for (let i = entities.length - 1; i >= 0; i--) {
+            entities[i].y += entities[i].speed;
+            if (entities[i].type === 'asteroid') entities[i].rotation += entities[i].rotSpeed;
+            if (entities[i].y > canvas.height + 60) entities.splice(i, 1);
+        }
+
+        gctx.clearRect(0, 0, canvas.width, canvas.height);
+        gctx.save();
+        if (shakeAmount > 0.5) {
+            gctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+        }
+
+        entities.forEach(e => { e.type === 'asteroid' ? drawAsteroid(e) : drawPie(e); });
+
+        debris.forEach(d => {
+            gctx.save();
+            gctx.globalAlpha = d.life;
+            gctx.translate(d.x, d.y);
+            gctx.rotate(d.rotation);
+            gctx.fillStyle = d.color;
+            gctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
+            gctx.restore();
+        });
+
+        particles.forEach(p => {
+            gctx.globalAlpha = p.life;
+            gctx.beginPath(); gctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            gctx.fillStyle = p.color; gctx.fill();
+        });
+        gctx.globalAlpha = 1;
+
+        if (crashScale > 0.05) {
+            drawRocket(crashRocketX, crashRocketY, crashScale, crashAngle, crashScale);
+        }
+
+        gctx.restore();
+
+        document.getElementById('game-hud').style.opacity = Math.max(0, 1 - t * 0.8);
+
+        if (elapsed < 2500) {
+            requestAnimationFrame(crashLoop);
+        } else {
+            crashing = false;
+            setTimeout(startGame, 600);
+        }
+    }
+
+    // ─── Game Loop ───
+    function gameLoop() {
+        if (!gameRunning) return;
+        const elapsed = Date.now() - gameStartTime;
+        const timeProgress = Math.min(elapsed / GAME_DURATION, 1);
+        const pieProgress = piesCollected / PIES_NEEDED;
+        gameProgress = Math.min(timeProgress * 0.5 + pieProgress * 0.5, 1);
+        document.getElementById('progress-fill').style.width = `${gameProgress * 100}%`;
+
+        rocketX += (targetX - rocketX) * 0.08;
+        rocketX = Math.max(30, Math.min(canvas.width - 30, rocketX));
+        shakeAmount *= 0.9;
+
+        for (let i = entities.length - 1; i >= 0; i--) {
+            const e = entities[i];
+            e.y += e.speed;
+            if (e.type === 'asteroid') e.rotation += e.rotSpeed;
+            if (e.y > canvas.height + 60) { entities.splice(i, 1); continue; }
+            const distX = e.x - rocketX, distY = e.y - rocketY;
+            const dist = Math.sqrt(distX * distX + distY * distY);
+            if (e.type === 'pie' && dist < e.size + 20) {
+                piesCollected++;
+                document.getElementById('pie-count').textContent = piesCollected;
+                spawnParticles(e.x, e.y, '#feca57', 15);
+                entities.splice(i, 1); continue;
+            }
+            if (e.type === 'asteroid' && dist < e.size * 0.5 + 14) {
+                triggerCrash(e.x, e.y);
+                return;
+            }
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+
+        gctx.clearRect(0, 0, canvas.width, canvas.height);
+        gctx.save();
+        if (shakeAmount > 0.5) {
+            gctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+        }
+
+        if (Math.random() < 0.6) {
+            particles.push({
+                x: rocketX + (Math.random() - 0.5) * 10, y: rocketY + 25,
+                vx: (Math.random() - 0.5), vy: 2 + Math.random() * 2,
+                life: 0.6, decay: 0.02, size: 2 + Math.random() * 3,
+                color: Math.random() < 0.5 ? '#feca57' : '#ff6b6b'
+            });
+        }
+
+        entities.forEach(e => { e.type === 'asteroid' ? drawAsteroid(e) : drawPie(e); });
+        particles.forEach(p => {
+            gctx.globalAlpha = p.life;
+            gctx.beginPath(); gctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            gctx.fillStyle = p.color; gctx.fill();
+        });
+        gctx.globalAlpha = 1;
+        drawRocket(rocketX, rocketY);
+        gctx.restore();
+
+        const instrEl = document.getElementById('game-instructions');
+        if (instrEl) instrEl.style.opacity = instructionOpacity;
+        instructionOpacity = Math.max(0, instructionOpacity - 0.005);
+
+        if (piesCollected >= PIES_NEEDED && timeProgress > 0.3) {
+            gameRunning = false; setTimeout(startTransition, 500); return;
+        }
+        if (timeProgress >= 1) {
+            gameRunning = false; setTimeout(startTransition, 500); return;
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    // ─── Transition ───
+    function startTransition() {
+        showScreen('transition-screen');
+        const icons = document.querySelectorAll('#transition-screen .morph-icon');
+        const text = document.getElementById('morph-text');
+
+        const steps = [
+            { idx: 0, text: 'Mission complete at Starlink...', delay: 0 },
+            { idx: 1, text: 'Systems reconfiguring...', delay: 2000 },
+            { idx: 2, text: 'Loading Physical Intelligence OS...', delay: 4000 },
+            { idx: 3, text: 'Welcome to PI, Shihao.', delay: 6000 },
+        ];
+
+        steps.forEach(step => {
+            setTimeout(() => {
+                icons.forEach(ic => ic.classList.remove('active'));
+                icons[step.idx].classList.add('active');
+                text.style.opacity = 0;
+                setTimeout(() => { text.textContent = step.text; text.style.opacity = 1; }, 300);
+            }, step.delay);
+        });
+
+        setTimeout(() => { showScreen('celebration'); startConfetti(); }, 8500);
+    }
+
+    // ─── Confetti (canvas-confetti library) ───
+    function startConfetti() {
+        const colors = ['#48dbfb', '#a29bfe', '#fd79a8', '#feca57', '#55efc4', '#ff6b6b', '#74b9ff'];
+
+        // Big initial center burst with stars
+        confetti({
+            particleCount: 120,
+            spread: 100,
+            startVelocity: 50,
+            origin: { x: 0.5, y: 0.6 },
+            colors: colors,
+            shapes: ['star', 'circle'],
+            scalar: 1.2,
+            ticks: 300,
+            gravity: 0.8
+        });
+
+        // Delayed secondary burst
+        setTimeout(() => {
+            confetti({
+                particleCount: 60,
+                spread: 140,
+                startVelocity: 35,
+                origin: { x: 0.5, y: 0.5 },
+                colors: colors,
+                shapes: ['star', 'circle', 'square'],
+                scalar: 0.9,
+                ticks: 250
+            });
+        }, 400);
+
+        // Continuous side cannons for ~6 seconds
+        const duration = 6000;
+        const end = Date.now() + duration;
+
+        (function frame() {
+            confetti({
+                particleCount: 3,
+                angle: 60,
+                spread: 55,
+                startVelocity: 40,
+                origin: { x: 0, y: 0.7 },
+                colors: colors,
+                shapes: ['star', 'circle'],
+                scalar: 0.8,
+                ticks: 200,
+                gravity: 0.9,
+                drift: 0.5
+            });
+            confetti({
+                particleCount: 3,
+                angle: 120,
+                spread: 55,
+                startVelocity: 40,
+                origin: { x: 1, y: 0.7 },
+                colors: colors,
+                shapes: ['star', 'circle'],
+                scalar: 0.8,
+                ticks: 200,
+                gravity: 0.9,
+                drift: -0.5
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+
+        // Firework pops at random spots
+        [800, 1600, 2400, 3200, 4200].forEach(delay => {
+            setTimeout(() => {
+                confetti({
+                    particleCount: 40,
+                    spread: 360,
+                    startVelocity: 25,
+                    origin: { x: 0.2 + Math.random() * 0.6, y: 0.2 + Math.random() * 0.4 },
+                    colors: colors,
+                    shapes: ['star'],
+                    scalar: 1.1,
+                    ticks: 180,
+                    gravity: 0.6
+                });
+            }, delay);
+        });
+    }
+    </script>
+</body>
+</html>
